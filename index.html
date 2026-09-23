@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sticky — early access</title>
+<meta name="description" content="A personal sticker library for iPhone. Join early access.">
+
+<!-- Open Graph, for when the bio link gets shared -->
+<meta property="og:title" content="Sticky — early access">
+<meta property="og:description" content="Every reaction you've saved. Two taps away. Coming to iPhone.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root{
+    --coral:#F2545B;
+    --blush:#FF9A8B;
+    --cream:#FFF3E0;
+    --ink:#2B1A1C;
+    --ink-soft:rgba(43,26,28,.62);
+    --line:rgba(43,26,28,.18);
+    --radius-md:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100dvh;
+    background:var(--cream);
+    color:var(--ink);
+    font-family:"JetBrains Mono","SF Mono",ui-monospace,monospace;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:8vh 24px;
+  }
+  main{width:100%;max-width:420px}
+
+  .eyebrow{
+    font-size:14px;
+    font-weight:500;
+    letter-spacing:.02em;
+    margin:0 0 28px;
+  }
+  h1{
+    font-size:clamp(28px,7vw,38px);
+    line-height:1.2;
+    font-weight:500;
+    letter-spacing:-0.01em;
+    margin:0 0 14px;
+  }
+  p.sub{
+    font-size:16px;
+    line-height:1.55;
+    color:var(--ink-soft);
+    font-weight:400;
+    margin:0 0 36px;
+    max-width:36ch;
+  }
+
+  form{display:flex;flex-direction:column;gap:12px}
+
+  input[type="email"]{
+    width:100%;
+    font-family:inherit;
+    font-size:16px;
+    font-weight:400;
+    color:var(--ink);
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:15px 18px;
+    outline:none;
+  }
+  input[type="email"]::placeholder{color:var(--ink-soft)}
+  input[type="email"]:focus{border-color:var(--ink)}
+
+  button{
+    width:100%;
+    font-family:inherit;
+    font-size:17px;
+    font-weight:500;
+    color:var(--cream);
+    background:var(--coral);
+    border:none;
+    border-radius:999px;
+    padding:16px 20px;
+    cursor:pointer;
+  }
+  button:hover{background:var(--blush);color:var(--ink)}
+  button:disabled{opacity:.6;cursor:default}
+
+  .fine{
+    font-size:12.5px;
+    line-height:1.5;
+    color:var(--ink-soft);
+    margin:14px 0 0;
+  }
+
+  .msg{
+    display:none;
+    font-size:15px;
+    font-weight:500;
+    line-height:1.5;
+    padding:16px 18px;
+    border-radius:var(--radius-md);
+  }
+  .msg.show{display:block}
+  .msg.ok{background:var(--cream);border:1.5px solid var(--ink)}
+  .msg.err{background:#fff;border:1.5px solid var(--coral);color:var(--coral)}
+
+  footer{
+    margin-top:56px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Sticky</p>
+  <h1>Every reaction you've saved. Two taps away.</h1>
+  <p class="sub">A personal sticker library for iPhone. Coming soon — join early access and we'll email you the day it launches.</p>
+
+  <form id="signup-form">
+    <input type="email" name="email" placeholder="you@email.com" required autocomplete="email">
+    <!-- honeypot: real visitors never see or fill this; a bot filling it gets silently dropped -->
+    <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
+    <button type="submit">Join early access</button>
+    <p class="fine">One email when Sticky launches. No spam, no sharing your address. Unsubscribe anytime.</p>
+  </form>
+
+  <div class="msg ok" id="msg-ok">You're on the list. We'll email you when Sticky launches.</div>
+  <div class="msg ok" id="msg-dupe">You're already on the list — we'll be in touch.</div>
+  <div class="msg err" id="msg-err">Something went wrong. Try again, or reach us directly.</div>
+
+  <footer>Sticky · coming to iPhone</footer>
+</main>
+
+<script>
+  // SETUP: fill in your project's URL and anon/publishable key
+  // (Supabase dashboard → Settings → API). Never put the service_role key here.
+  const SUPABASE_URL = 'https://ulqmnxwinknncidlzuqk.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVscW1ueHdpbmtubmNpZGx6dXFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMDcwNjksImV4cCI6MjEwNTY4MzA2OX0.zXBVQC2FPdCcnDw_-Ecc94-bW45uuobulKU1DKNYTdc';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const form = document.getElementById('signup-form');
+  const okMsg = document.getElementById('msg-ok');
+  const dupeMsg = document.getElementById('msg-dupe');
+  const errMsg = document.getElementById('msg-err');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errMsg.classList.remove('show');
+    dupeMsg.classList.remove('show');
+
+    // honeypot: a real visitor never fills this; a bot usually does
+    if (form._gotcha.value) return;
+
+    const email = form.email.value.trim();
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+    btn.textContent = 'Joining…';
+
+    const { error } = await db.from('signups').insert({ email });
+
+    if (!error) {
+      form.style.display = 'none';
+      okMsg.classList.add('show');
+    } else if (error.code === '23505') {
+      // unique_violation — this email is already in the table
+      form.style.display = 'none';
+      dupeMsg.classList.add('show');
+    } else {
+      console.error(error);
+      errMsg.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Join early access';
+    }
+  });
+</script>
+</body>
+</html>
